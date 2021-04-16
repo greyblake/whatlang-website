@@ -1,17 +1,29 @@
-// (Lines like the one below ignore selected Clippy rules
 //  - it's useful when you want to check your code with `cargo make verify`
-// but some rules are too "annoying" or are not applicable for your case.)
 #![allow(clippy::wildcard_imports)]
 
 use seed::{prelude::*, *};
+use whatlang::dev::{detect, Info, raw_detect, RawInfo, RawLangInfo, RawScriptInfo, RawAlphabetsInfo, RawTrigramsInfo};
+
+mod icon;
+use icon::Icon;
 
 // ------ ------
 //     Init
 // ------ ------
 
 // `init` describes what should happen when your app started.
-fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
-    Model { counter: 0 }
+fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
+    orders.stream(streams::interval(80, || Msg::OnTick));
+
+    //let text = "Ĉiu kreas sian forton, ĉiu forĝas sian sorton.";
+    let text = "";
+    Model {
+        mode: Mode::Auto(0),
+        text: text.to_string(),
+        info: detect(text),
+        raw_info: raw_detect(text),
+        tab: Tab::Language,
+    }
 }
 
 // ------ ------
@@ -20,25 +32,97 @@ fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
 
 // `Model` describes our app state.
 struct Model {
-    counter: i32,
+    mode: Mode,
+    text: String,
+    info: Option<Info>,
+    raw_info: RawInfo,
+    tab: Tab,
 }
+
+enum Mode {
+    // Demo mode, when text is typed itself
+    Auto(usize),
+
+    // When user started interacting
+    Manual
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum Tab {
+    Language,
+    Debug
+}
+
+impl Tab {
+    fn name_and_icon(self) -> (&'static str, Icon) {
+        match self {
+            Tab::Language => ("Language", Icon::Language),
+            Tab::Debug => ("Debug", Icon::DraftingCompass),
+        }
+    }
+}
+
 
 // ------ ------
 //    Update
 // ------ ------
 
 // (Remove the line below once any of your `Msg` variants doesn't implement `Copy`.)
-#[derive(Copy, Clone)]
+#[derive(Debug, Clone)]
 // `Msg` describes the different events you can modify state with.
 enum Msg {
-    Increment,
+    UpdateText(String),
+    OnTick,
+    ChangeTab(Tab),
 }
 
 // `update` describes how to handle each `Msg`.
 fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
     match msg {
-        Msg::Increment => model.counter += 1,
+        Msg::UpdateText(text) => {
+            match model.mode {
+                Mode::Auto(_) => {
+                    let manually_entered_text = text
+                        .chars()
+                        .last()
+                        .map(|c| c.to_string())
+                        .unwrap_or("".to_string());
+                    model.text = manually_entered_text;
+                },
+                Mode::Manual => {
+                    model.text = text;
+                }
+            }
+            model.mode = Mode::Manual;
+            model.info = detect(&model.text);
+            model.raw_info = raw_detect(&model.text);
+        },
+        Msg::OnTick => {
+            match model.mode {
+                Mode::Auto(pos) => {
+                    let text = position_to_demo_text(pos);
+                    model.info = detect(&text);
+                    model.raw_info = raw_detect(&text);
+                    model.text = text;
+                    model.mode = Mode::Auto(pos + 1);
+                },
+                Mode::Manual => (),
+            }
+        },
+        Msg::ChangeTab(tab) => {
+            model.tab = tab;
+        },
     }
+}
+
+fn position_to_demo_text(pos: usize) -> String {
+    const TEXT: &'static str = r#"
+Hello dear, nice to see you here.
+I am Whatlang, a Rust library for natural language detection.
+This is just a demo version of me, thanks to WASM and Seed.
+Я могу говорить немного по-русски.
+"#;
+    TEXT.trim().chars().take(pos).collect()
 }
 
 // ------ ------
@@ -48,10 +132,191 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
 // `view` describes what to display.
 fn view(model: &Model) -> Node<Msg> {
     div![
-        "This is a counter: ",
-        C!["counter"],
-        button![model.counter, ev(Ev::Click, |_| Msg::Increment),],
+        div![ C!["container"],
+            textarea![
+                C!["textarea"],
+                attrs! {
+                    At::Value => model.text
+                },
+                input_ev(Ev::Input, Msg::UpdateText),
+            ],
+        ],
+        br![],
+        div![ C!["container"],
+            view_tabs(model),
+            view_ouput(model),
+        ]
     ]
+}
+
+
+fn view_tabs(model: &Model) -> Node<Msg> {
+    div![
+        C!["tabs"],
+        ul![
+            view_tab_li(model, Tab::Language),
+            view_tab_li(model, Tab::Debug),
+        ],
+    ]
+}
+
+fn view_tab_li(model: &Model, tab: Tab) -> Node<Msg> {
+    let (name, icon) = tab.name_and_icon();
+
+    li![
+        input_ev(Ev::Click, move |_| Msg::ChangeTab(tab)),
+        C![IF!(tab == model.tab => "is-active")],
+        a![
+            view_icon(icon),
+            span![name],
+        ],
+    ]
+}
+
+fn view_icon(icon: Icon) -> Node<Msg> {
+    span![
+        C!["icon is-small"],
+        i![
+            C![format!("fas {}", icon.to_class())],
+            attrs! { "aria-hidden" => true }
+        ],
+    ]
+}
+
+fn view_ouput(model: &Model) -> Node<Msg> {
+    match model.tab {
+        Tab::Language => view_info(&model.info),
+        Tab::Debug => view_debug_info(&model.raw_info),
+    }
+}
+
+
+fn view_debug_info(raw_info: &RawInfo) -> Node<Msg> {
+    let second_phase_columns = match raw_info.lang_info {
+        None => vec![text![]],
+        Some(ref lang_info) => view_debug_second_phase(lang_info),
+    };
+
+    div![ C!["columns"],
+        div![ C!["column"],
+            "Script scores",
+            pre![
+                format_script_info(&raw_info.script_info)
+            ],
+        ],
+        second_phase_columns
+    ]
+}
+
+fn view_debug_second_phase(info: &RawLangInfo) -> Vec<Node<Msg>> {
+    match info {
+        RawLangInfo::OneScript(lang) | RawLangInfo::Mandarin(lang) => {
+            vec![
+                div![ C!["column"],
+                    "Language",
+                    pre![
+                        lang.eng_name()
+                    ]
+                ]
+            ]
+        },
+        RawLangInfo::MultiScript { alphabets, trigrams } => {
+            vec![
+                div![ C!["column"],
+                    "Alphabet scores",
+                    pre![
+                        format_alphabets_info(alphabets)
+                    ]
+                ],
+                div![ C!["column"],
+                    "Trigram distances",
+                    pre![
+                        format_trigrams_info(trigrams)
+                    ]
+                ]
+            ]
+        }
+    }
+}
+
+fn format_script_info(info: &RawScriptInfo) -> String {
+    info.counters
+        .iter()
+        .map(|(script, count)| format!("{}: {}", script, count))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+fn format_alphabets_info(info: &RawAlphabetsInfo) -> String {
+    info.raw_scores
+        .iter()
+        .map(|(lang, scores)| format!("{}: {}", lang.eng_name(), scores))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+fn format_trigrams_info(info: &RawTrigramsInfo) -> String {
+    info.raw_distances
+        .iter()
+        .map(|(lang, dist)| format!("{}: {}", lang.eng_name(), dist))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+
+
+
+
+
+
+
+
+
+
+fn view_info(info: &Option<Info>) -> Node<Msg> {
+    div![ C!["columns"],
+        div![ C!["column"],
+            "Human output",
+            pre![
+                format_human_output(info)
+            ]
+        ],
+        div![ C!["column"],
+            "Rust output",
+            pre![
+                format_rust_output(info)
+            ]
+        ]
+    ]
+}
+
+fn format_human_output(info: &Option<Info>) -> String {
+    match info {
+        Some(info) => {
+            let is_reliable = if info.is_reliable() { "Yes" } else { "No" };
+            let lang = info.lang();
+            let lang_name =
+                if lang.name() == lang.eng_name() {
+                    lang.name().to_string()
+                } else {
+                    format!("{} ({})", lang.name(), lang.eng_name())
+                };
+            format!(
+                "Language: {}\nScript: {}\nIs reliable: {}\nConfidence: {}%",
+                lang_name,
+                info.script().name(),
+                is_reliable,
+                (info.confidence() * 100.0).round()
+            )
+        },
+        None => {
+            "The input text is too scarce to detect a language.".to_string()
+        }
+    }
+}
+
+fn format_rust_output(info: &Option<Info>) -> String {
+    format!("{:#?}", info)
 }
 
 // ------ ------

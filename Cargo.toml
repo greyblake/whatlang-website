@@ -17,6 +17,7 @@ wasm-bindgen-test = "0.3.18"
 
 [dependencies]
 seed = "0.8.0"
+whatlang = { path = "../whatlang-rs", features = ["dev"] }
 
 [profile.release]
 lto = true
