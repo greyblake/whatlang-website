@@ -2,7 +2,10 @@
 #![allow(clippy::wildcard_imports)]
 
 use seed::{prelude::*, *};
-use whatlang::dev::{detect, Info, raw_detect, RawInfo, RawLangInfo, RawScriptInfo, RawAlphabetsInfo, RawTrigramsInfo};
+use whatlang::dev::{
+    detect, raw_detect, Info, RawAlphabetsInfo, RawInfo, RawLangInfo, RawScriptInfo,
+    RawTrigramsInfo,
+};
 
 mod icon;
 use icon::Icon;
@@ -44,13 +47,13 @@ enum Mode {
     Auto(usize),
 
     // When user started interacting
-    Manual
+    Manual,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum Tab {
     Language,
-    Debug
+    Debug,
 }
 
 impl Tab {
@@ -61,7 +64,6 @@ impl Tab {
         }
     }
 }
-
 
 // ------ ------
 //    Update
@@ -88,7 +90,7 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
                         .map(|c| c.to_string())
                         .unwrap_or("".to_string());
                     model.text = manually_entered_text;
-                },
+                }
                 Mode::Manual => {
                     model.text = text;
                 }
@@ -96,27 +98,25 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
             model.mode = Mode::Manual;
             model.info = detect(&model.text);
             model.raw_info = raw_detect(&model.text);
-        },
-        Msg::OnTick => {
-            match model.mode {
-                Mode::Auto(pos) => {
-                    let text = position_to_demo_text(pos);
-                    model.info = detect(&text);
-                    model.raw_info = raw_detect(&text);
-                    model.text = text;
-                    model.mode = Mode::Auto(pos + 1);
-                },
-                Mode::Manual => (),
+        }
+        Msg::OnTick => match model.mode {
+            Mode::Auto(pos) => {
+                let text = position_to_demo_text(pos);
+                model.info = detect(&text);
+                model.raw_info = raw_detect(&text);
+                model.text = text;
+                model.mode = Mode::Auto(pos + 1);
             }
+            Mode::Manual => (),
         },
         Msg::ChangeTab(tab) => {
             model.tab = tab;
-        },
+        }
     }
 }
 
 fn position_to_demo_text(pos: usize) -> String {
-    const TEXT: &'static str = r#"
+    const TEXT: &str = r#"
 Hello dear, nice to see you here.
 I am Whatlang, a Rust library for natural language detection.
 This is just a demo version of me, thanks to WASM and Seed.
@@ -132,7 +132,8 @@ This is just a demo version of me, thanks to WASM and Seed.
 // `view` describes what to display.
 fn view(model: &Model) -> Node<Msg> {
     div![
-        div![ C!["container"],
+        div![
+            C!["container"],
             textarea![
                 C!["textarea"],
                 attrs! {
@@ -142,13 +143,9 @@ fn view(model: &Model) -> Node<Msg> {
             ],
         ],
         br![],
-        div![ C!["container"],
-            view_tabs(model),
-            view_ouput(model),
-        ]
+        div![C!["container"], view_tabs(model), view_ouput(model),]
     ]
 }
-
 
 fn view_tabs(model: &Model) -> Node<Msg> {
     div![
@@ -166,10 +163,7 @@ fn view_tab_li(model: &Model, tab: Tab) -> Node<Msg> {
     li![
         input_ev(Ev::Click, move |_| Msg::ChangeTab(tab)),
         C![IF!(tab == model.tab => "is-active")],
-        a![
-            view_icon(icon),
-            span![name],
-        ],
+        a![view_icon(icon), span![name],],
     ]
 }
 
@@ -190,19 +184,18 @@ fn view_ouput(model: &Model) -> Node<Msg> {
     }
 }
 
-
 fn view_debug_info(raw_info: &RawInfo) -> Node<Msg> {
     let second_phase_columns = match raw_info.lang_info {
         None => vec![text![]],
         Some(ref lang_info) => view_debug_second_phase(lang_info),
     };
 
-    div![ C!["columns"],
-        div![ C!["column"],
+    div![
+        C!["columns"],
+        div![
+            C!["column"],
             "Script scores",
-            pre![
-                format_script_info(&raw_info.script_info)
-            ],
+            pre![format_script_info(&raw_info.script_info)],
         ],
         second_phase_columns
     ]
@@ -211,29 +204,23 @@ fn view_debug_info(raw_info: &RawInfo) -> Node<Msg> {
 fn view_debug_second_phase(info: &RawLangInfo) -> Vec<Node<Msg>> {
     match info {
         RawLangInfo::OneScript(lang) | RawLangInfo::Mandarin(lang) => {
+            vec![div![C!["column"], "Language", pre![lang.eng_name()]]]
+        }
+        RawLangInfo::MultiScript {
+            alphabets,
+            trigrams,
+        } => {
             vec![
-                div![ C!["column"],
-                    "Language",
-                    pre![
-                        lang.eng_name()
-                    ]
-                ]
-            ]
-        },
-        RawLangInfo::MultiScript { alphabets, trigrams } => {
-            vec![
-                div![ C!["column"],
+                div![
+                    C!["column"],
                     "Alphabet scores",
-                    pre![
-                        format_alphabets_info(alphabets)
-                    ]
+                    pre![format_alphabets_info(alphabets)]
                 ],
-                div![ C!["column"],
+                div![
+                    C!["column"],
                     "Trigram distances",
-                    pre![
-                        format_trigrams_info(trigrams)
-                    ]
-                ]
+                    pre![format_trigrams_info(trigrams)]
+                ],
             ]
         }
     }
@@ -263,30 +250,15 @@ fn format_trigrams_info(info: &RawTrigramsInfo) -> String {
         .join("\n")
 }
 
-
-
-
-
-
-
-
-
-
-
 fn view_info(info: &Option<Info>) -> Node<Msg> {
-    div![ C!["columns"],
-        div![ C!["column"],
+    div![
+        C!["columns"],
+        div![
+            C!["column"],
             "Human output",
-            pre![
-                format_human_output(info)
-            ]
+            pre![format_human_output(info)]
         ],
-        div![ C!["column"],
-            "Rust output",
-            pre![
-                format_rust_output(info)
-            ]
-        ]
+        div![C!["column"], "Rust output", pre![format_rust_output(info)]]
     ]
 }
 
@@ -295,12 +267,11 @@ fn format_human_output(info: &Option<Info>) -> String {
         Some(info) => {
             let is_reliable = if info.is_reliable() { "Yes" } else { "No" };
             let lang = info.lang();
-            let lang_name =
-                if lang.name() == lang.eng_name() {
-                    lang.name().to_string()
-                } else {
-                    format!("{} ({})", lang.name(), lang.eng_name())
-                };
+            let lang_name = if lang.name() == lang.eng_name() {
+                lang.name().to_string()
+            } else {
+                format!("{} ({})", lang.name(), lang.eng_name())
+            };
             format!(
                 "Language: {}\nScript: {}\nIs reliable: {}\nConfidence: {}%",
                 lang_name,
@@ -308,10 +279,8 @@ fn format_human_output(info: &Option<Info>) -> String {
                 is_reliable,
                 (info.confidence() * 100.0).round()
             )
-        },
-        None => {
-            "The input text is too scarce to detect a language.".to_string()
         }
+        None => "The input text is too scarce to detect a language.".to_string(),
     }
 }
 
