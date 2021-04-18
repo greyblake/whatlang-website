@@ -10,22 +10,26 @@ use whatlang::dev::{
 mod icon;
 use icon::Icon;
 
+mod demo;
+use demo::Show;
+
 // ------ ------
 //     Init
 // ------ ------
 
 // `init` describes what should happen when your app started.
 fn init(_: Url, orders: &mut impl Orders<Msg>) -> Model {
-    orders.stream(streams::interval(80, || Msg::OnTick));
+    orders.stream(streams::interval(100, || Msg::OnTick));
 
-    //let text = "Ĉiu kreas sian forton, ĉiu forĝas sian sorton.";
-    let text = "";
+    let mut show = Show::gen_random();
+    let text = show.next().unwrap_or("".to_string());
     Model {
         mode: Mode::Auto(0),
-        text: text.to_string(),
-        info: detect(text),
-        raw_info: raw_detect(text),
+        info: detect(&text),
+        raw_info: raw_detect(&text),
+        text,
         tab: Tab::Language,
+        show,
     }
 }
 
@@ -40,6 +44,7 @@ struct Model {
     info: Option<Info>,
     raw_info: RawInfo,
     tab: Tab,
+    show: Show,
 }
 
 enum Mode {
@@ -88,7 +93,7 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
                         .chars()
                         .last()
                         .map(|c| c.to_string())
-                        .unwrap_or("".to_string());
+                        .unwrap_or_else(|| "".to_string());
                     model.text = manually_entered_text;
                 }
                 Mode::Manual => {
@@ -101,7 +106,7 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
         }
         Msg::OnTick => match model.mode {
             Mode::Auto(pos) => {
-                let text = position_to_demo_text(pos);
+                let text = model.show.next().unwrap_or_else(|| "".to_string());
                 model.info = detect(&text);
                 model.raw_info = raw_detect(&text);
                 model.text = text;
@@ -113,16 +118,6 @@ fn update(msg: Msg, model: &mut Model, _: &mut impl Orders<Msg>) {
             model.tab = tab;
         }
     }
-}
-
-fn position_to_demo_text(pos: usize) -> String {
-    const TEXT: &str = r#"
-Hello dear, nice to see you here.
-I am Whatlang, a Rust library for natural language detection.
-This is just a demo version of me, thanks to WASM and Seed.
-Я могу говорить немного по-русски.
-"#;
-    TEXT.trim().chars().take(pos).collect()
 }
 
 // ------ ------
@@ -305,7 +300,9 @@ fn view_human_output(info: &Option<Info>) -> Node<Msg> {
                 "%"
             ]
         }
-        None => p!["The input text is too scarce to detect a language."],
+        None => {
+            p!["The input text is too scarce to detect anything. Try to type something meaningful."]
+        }
     }
 }
 

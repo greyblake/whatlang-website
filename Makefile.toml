@@ -11,7 +11,7 @@ description = "Watch files and recompile the project on change"
 run_task = [
     { name = "build" },
 ]
-watch = true
+watch = { watch = ["./src"]  }
 
 [tasks.serve]
 description = "Start server"
