@@ -3,8 +3,8 @@
 
 use seed::{prelude::*, *};
 use whatlang::dev::{
-    detect, raw_detect, Info, RawAlphabetsInfo, RawInfo, RawLangInfo, RawScriptInfo,
-    RawTrigramsInfo,
+    detect, raw_detect, Info, RawAlphabetsInfo, RawCombinedInfo, RawInfo, RawLangInfo,
+    RawScriptInfo, RawTrigramsInfo,
 };
 
 mod icon;
@@ -194,8 +194,8 @@ fn view_debug_info(raw_info: &RawInfo) -> Node<Msg> {
         C!["columns"],
         div![
             C!["column"],
-            "Script scores",
-            pre![format_script_info(&raw_info.script_info)],
+            h5![C!["title is-5"], "Script Scores"],
+            view_script_info_as_table(&raw_info.script_info),
         ],
         second_phase_columns
     ]
@@ -206,48 +206,62 @@ fn view_debug_second_phase(info: &RawLangInfo) -> Vec<Node<Msg>> {
         RawLangInfo::OneScript(lang) | RawLangInfo::Mandarin(lang) => {
             vec![div![C!["column"], "Language", pre![lang.eng_name()]]]
         }
-        RawLangInfo::MultiScript {
-            alphabets,
-            trigrams,
-        } => {
+        RawLangInfo::MultiScript(combined) => {
             vec![
                 div![
                     C!["column"],
-                    "Alphabet scores",
-                    pre![format_alphabets_info(alphabets)]
+                    h5![C!["title is-5"], "Alphabet Scores"],
+                    view_alphabets_info_as_table(&combined.alphabet_raw_outcome),
                 ],
                 div![
                     C!["column"],
-                    "Trigram distances",
-                    pre![format_trigrams_info(trigrams)]
+                    h5![C!["title is-5"], "Trigram Distances"],
+                    view_trigrams_info_as_table(&combined.trigram_raw_outcome),
+                ],
+                div![
+                    C!["column"],
+                    h5![C!["title is-5"], "Combined Scores"],
+                    view_combined_info_as_table(combined),
                 ],
             ]
         }
     }
 }
 
-fn format_script_info(info: &RawScriptInfo) -> String {
-    info.counters
+fn view_script_info_as_table(info: &RawScriptInfo) -> Node<Msg> {
+    let rows = info
+        .counters
         .iter()
-        .map(|(script, count)| format!("{}: {}", script, count))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(script, count)| tr![td![script.name()], td![count]]);
+
+    table![C!["table is-striped is-fullwidth"], tbody![rows],]
 }
 
-fn format_alphabets_info(info: &RawAlphabetsInfo) -> String {
-    info.raw_scores
+fn view_alphabets_info_as_table(info: &RawAlphabetsInfo) -> Node<Msg> {
+    let rows = info
+        .raw_scores
         .iter()
-        .map(|(lang, scores)| format!("{}: {}", lang.eng_name(), scores))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(lang, count)| tr![td![lang.eng_name()], td![count]]);
+
+    table![C!["table is-striped is-fullwidth"], tbody![rows],]
 }
 
-fn format_trigrams_info(info: &RawTrigramsInfo) -> String {
-    info.raw_distances
+fn view_trigrams_info_as_table(info: &RawTrigramsInfo) -> Node<Msg> {
+    let rows = info
+        .raw_distances
         .iter()
-        .map(|(lang, dist)| format!("{}: {}", lang.eng_name(), dist))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(lang, dist)| tr![td![lang.eng_name()], td![dist]]);
+
+    table![C!["table is-striped is-fullwidth"], tbody![rows]]
+}
+
+fn view_combined_info_as_table(info: &RawCombinedInfo) -> Node<Msg> {
+    let rows = info.scores.iter().map(|(lang, score)| {
+        let rounded_score = format!("{:.4}", score);
+        tr![td![lang.eng_name()], td![rounded_score]]
+    });
+
+    table![C!["table is-striped is-fullwidth"], tbody![rows]]
 }
 
 fn view_info(info: &Option<Info>) -> Node<Msg> {
@@ -255,14 +269,18 @@ fn view_info(info: &Option<Info>) -> Node<Msg> {
         C!["columns"],
         div![
             C!["column"],
-            "Human output",
-            pre![format_human_output(info)]
+            h5![C!["title is-5"], "Human Output"],
+            view_human_output(info)
         ],
-        div![C!["column"], "Rust output", pre![format_rust_output(info)]]
+        div![
+            C!["column"],
+            h5![C!["title is-5"], "Rust Output"],
+            pre![format_rust_output(info)]
+        ],
     ]
 }
 
-fn format_human_output(info: &Option<Info>) -> String {
+fn view_human_output(info: &Option<Info>) -> Node<Msg> {
     match info {
         Some(info) => {
             let is_reliable = if info.is_reliable() { "Yes" } else { "No" };
@@ -272,15 +290,22 @@ fn format_human_output(info: &Option<Info>) -> String {
             } else {
                 format!("{} ({})", lang.name(), lang.eng_name())
             };
-            format!(
-                "Language: {}\nScript: {}\nIs reliable: {}\nConfidence: {}%",
+            p![
+                "Language: ",
                 lang_name,
+                br![],
+                "Script: ",
                 info.script().name(),
+                br![],
+                "Is reliable: ",
                 is_reliable,
-                (info.confidence() * 100.0).round()
-            )
+                br![],
+                "Confidence: ",
+                (info.confidence() * 100.0).round(),
+                "%"
+            ]
         }
-        None => "The input text is too scarce to detect a language.".to_string(),
+        None => p!["The input text is too scarce to detect a language."],
     }
 }
 
