@@ -14,7 +14,8 @@ copy_artifacts:
 	cp ./index.html ./public/
 	cp ./assets/favicon.ico ./public/
 	cp -r ./assets/ ./public/
-	cp -r ./pkg/ ./public/
+	cp ./pkg/package.js ./public/assets/
+	cp ./pkg/package_bg.wasm ./public/assets/
 
 
 #
