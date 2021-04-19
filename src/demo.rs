@@ -10,8 +10,8 @@ const MID_TEXT_UKR: &str = r#"Привіт, чуваче! Дуже радий т
 Якщо ти сьогодні вже поїв трохи борщу з сальцем, почуваєшся у доброму гуморі, то може зайдеш на гітхаб та ткнеш зірочку?
          Я тобі трохи заздрю, бо вже дуже давно не куштував борщ!           ."#;
 
-const MID_TEXT_DEU: &str = r#"Wenn du vershtest, was ich schreibe, dann du wahrscheinlich deutsch bist.
-Für dich habe ich aber kleinen Reminder: kein Bier für vier. Ansonst geht es..... immer los!!!"#;
+const MID_TEXT_DEU: &str = r#"Wenn Du verstehst, was ich schreibe, dann bist Du wahrscheinlich deutsch.
+Für Dich habe ich eine kleine Gedankenstütze: Kein Bier vor Vier. Ansonsten geht es..... immer los!!!"#;
 
 const MID_TEXT_EPO: &str = r#"Se vi tion komprenas, verŝajne vi estas esperantisto aŭ esperantistino.
 Do mi salutegas vin kaj deziras al vi, ke vi neniam perdu la Esperon!
